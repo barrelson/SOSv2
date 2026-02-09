@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Service">
+  <meta name="theme-color" content="#1f2937">
+  <title>State of Service</title>
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    * { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+const { useState, useMemo, useEffect, useRef } = React;
+
+// Icon components
+const Plus = ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+const Edit2 = ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>;
+const Trash2 = ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
+const Calendar = ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
+const ChevronDown = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="6 9 12 15 18 9"></polyline></svg>;
+const ChevronUp = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="18 15 12 9 6 15"></polyline></svg>;
+const Cloud = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>;
+const CloudOff = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>;
+const ArrowUpDown = ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></svg>;
+
+const CustomerVisitTracker = () => {
+  const AREAS = ['Kristiansund', 'Frei', 'Surnadal', 'Halsa', 'Tingvoll', 'Tustna', 'Aure', 'Smøla'];
+  const BADGE_OPTIONS = ['Bille', 'Maur', 'Mus', 'LUM3', 'LUM4', 'LUU', 'LUB', 'LUC', 'AUTR', 'GNK'];
+  
+  const getBadgeDisplay = (badge) => {
+    const animalEmojis = {
+      'Bille': '🪲',
+      'Maur': '🐜',
+      'Mus': '🐭'
+    };
+    return animalEmojis[badge] || badge;
+  };
+  
+  const formatSyncTime = (date) => {
+    if (!date) return '';
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+  
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState('syncing');
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [selectedAreas, setSelectedAreas] = useState(AREAS);
+  const [collapsedAreas, setCollapsedAreas] = useState(new Set());
+  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [sortBy, setSortBy] = useState('dueDate');
+  const [viewMode, setViewMode] = useState('byArea');
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [reverseOrder, setReverseOrder] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [exportData, setExportData] = useState('');
+  const [showImport, setShowImport] = useState(false);
+  const [importData, setImportData] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showMenu, setShowMenu] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    area: 'Kristiansund',
+    lastVisit: '',
+    contractVisits: 6,
+    contractType: 'recurring',
+    jobVisits: 1,
+    visitCount: 0,
+    notes: '',
+    badges: []
+  });
+
+  const menuRef = useRef(null);
+  const formRef = useRef(null);
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showMenu && menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
+
+  const loadData = async () => {
+    setLoading(true);
+    setSyncStatus('syncing');
+    try {
+      const saved = localStorage.getItem('customerVisitTrackerData');
+      if (saved) {
+        setCustomers(JSON.parse(saved));
+      } else {
+        setCustomers([]);
+      }
+      setSyncStatus('synced');
+      setLastSyncTime(new Date());
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setCustomers([]);
+      setSyncStatus('synced');
+      setLastSyncTime(new Date());
+    }
+    setLoading(false);
+  };
+
+  const saveData = async (newCustomers) => {
+    setCustomers(newCustomers);
+    setSyncStatus('syncing');
+    localStorage.setItem('customerVisitTrackerData', JSON.stringify(newCustomers));
+    setSyncStatus('synced');
+    setLastSyncTime(new Date());
+  };
+
+  const getContractColor = (customer) => {
+    if (customer.contractType === 'job') {
+      return 'bg-red-100 border-red-300';
+    }
+    switch(customer.contractVisits) {
+      case 12: return 'bg-orange-100 border-orange-300';
+      case 6: return 'bg-green-100 border-green-300';
+      case 4: return 'bg-blue-100 border-blue-300';
+      case 3:
+      case 2:
+      case 1: return 'bg-purple-100 border-purple-300';
+      default: return 'bg-gray-100 border-gray-300';
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'overdue': return 'text-gray-800 font-semibold';
+      case 'due-soon': return 'text-gray-800 font-semibold';
+      case 'up-to-date': return 'text-gray-800';
+      default: return 'text-gray-800';
+    }
+  };
+
+  const calculateNextVisit = (lastVisit, contractVisits, contractType, jobVisits, visitCount) => {
+    if (contractType === 'job') {
+      if (!lastVisit) return null;
+      if (jobVisits === 1) return null;
+      if (visitCount >= jobVisits) return null;
+      const last = new Date(lastVisit);
+      const next = new Date(last);
+      const daysToAdd = jobVisits === 3 ? 7 : 120;
+      next.setDate(next.getDate() + daysToAdd);
+      return next;
+    }
+    const daysInterval = Math.round(365 / contractVisits);
+    const last = new Date(lastVisit);
+    const next = new Date(last);
+    next.setDate(next.getDate() + daysInterval);
+    return next;
+  };
+
+  const isJobComplete = (customer) => {
+    if (customer.contractType !== 'job') return false;
+    if (!customer.lastVisit) return false;
+    const visitsDone = customer.visitCount || 0;
+    return visitsDone >= customer.jobVisits;
+  };
+
+  const isPeriodCompleted = (customer) => {
+    // Only for recurring contracts
+    if (customer.contractType === 'job') return false;
+    if (!customer.lastVisit) return false;
+    
+    // Calculate days in current period
+    const daysInterval = Math.round(365 / customer.contractVisits);
+    const lastVisitDate = new Date(customer.lastVisit);
+    const today = new Date();
+    const daysSinceLastVisit = Math.floor((today - lastVisitDate) / (1000 * 60 * 60 * 24));
+    
+    // Period is completed if last visit was within the current period (not overdue)
+    return daysSinceLastVisit < daysInterval;
+  };
+
+  const isAreaCompleted = (areaCustomers) => {
+    // Only check 6-visit customers (recurring contracts with 6 visits per year)
+    const sixVisitCustomers = areaCustomers.filter(c => 
+      c.contractType !== 'job' && 
+      c.contractVisits === 6
+    );
+    
+    // If no 6-visit customers, area is not completed
+    if (sixVisitCustomers.length === 0) return false;
+    
+    // Current year
+    const currentYear = new Date().getFullYear();
+    
+    // Check if all 6-visit customers have had a visit this year
+    return sixVisitCustomers.every(customer => {
+      if (!customer.lastVisit) return false;
+      const visitYear = new Date(customer.lastVisit).getFullYear();
+      return visitYear === currentYear;
+    });
+  };
+
+  const getVisitStatus = (customer) => {
+    if (customer.contractType === 'job') {
+      if (!customer.lastVisit) {
+        return { status: 'job-pending', label: 'Jobb - Ingen besøk', priority: 0 };
+      }
+      if (isJobComplete(customer)) {
+        return { status: 'job-complete', label: 'Jobb fullført', priority: 999 };
+      }
+      const nextVisit = calculateNextVisit(customer.lastVisit, customer.contractVisits, customer.contractType, customer.jobVisits, customer.visitCount);
+      if (!nextVisit) {
+        return { status: 'job-complete', label: 'Jobb fullført', priority: 999 };
+      }
+      const today = new Date();
+      const daysUntil = Math.floor((nextVisit - today) / (1000 * 60 * 60 * 24));
+      const visitNum = (customer.visitCount || 0) + 1;
+      
+      if (daysUntil < 0) return { status: 'overdue', label: `Besøk ${visitNum} - ${Math.abs(daysUntil)}`, priority: 1 };
+      if (daysUntil <= 7) return { status: 'due-soon', label: `Besøk ${visitNum} ${daysUntil}`, priority: 2 };
+      return { status: 'up-to-date', label: `Besøk ${visitNum} ${daysUntil}`, priority: 3 };
+    }
+    
+    const nextVisit = calculateNextVisit(customer.lastVisit, customer.contractVisits, customer.contractType, customer.jobVisits, customer.visitCount);
+    const today = new Date();
+    const daysUntil = Math.floor((nextVisit - today) / (1000 * 60 * 60 * 24));
+    
+    if (daysUntil < 0) return { status: 'overdue', label: `- ${Math.abs(daysUntil)}`, priority: 1 };
+    if (daysUntil <= 7) return { status: 'due-soon', label: `${daysUntil}`, priority: 2 };
+    return { status: 'up-to-date', label: `${daysUntil}`, priority: 3 };
+  };
+
+  const sortCustomers = (customerList) => {
+    const sorted = [...customerList].sort((a, b) => {
+      if (sortBy === 'dueDate') {
+        const statusA = getVisitStatus(a);
+        const statusB = getVisitStatus(b);
+        
+        if (statusA.priority !== statusB.priority) {
+          return statusA.priority - statusB.priority;
+        }
+        
+        const nextA = calculateNextVisit(a.lastVisit, a.contractVisits, a.contractType, a.jobVisits, a.visitCount);
+        const nextB = calculateNextVisit(b.lastVisit, b.contractVisits, b.contractType, b.jobVisits, b.visitCount);
+        if (!nextA && !nextB) return 0;
+        if (!nextA) return 1;
+        if (!nextB) return -1;
+        return nextA - nextB;
+      } else if (sortBy === 'vpa') {
+        if (a.contractType === 'job' && b.contractType !== 'job') return -1;
+        if (a.contractType !== 'job' && b.contractType === 'job') return 1;
+        return b.contractVisits - a.contractVisits;
+      } else if (sortBy === 'name') {
+        return a.name.localeCompare(b.name, 'nb-NO');
+      }
+      return 0;
+    });
+    
+    return reverseOrder ? sorted.reverse() : sorted;
+  };
+
+  const customersByArea = useMemo(() => {
+    const filtered = customers.filter(c => {
+      const matchesArea = selectedAreas.includes(c.area);
+      const isCompleted = isJobComplete(c);
+      const effectiveBadges = (c.badges || []);
+      const matchesSearch = searchQuery.trim() === '' || 
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        effectiveBadges.some(badge => badge.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesArea && (showCompleted || !isCompleted) && matchesSearch;
+    });
+    
+    const grouped = {};
+    
+    // Add Jobs category first if there are multiple areas selected
+    if (selectedAreas.length > 1) {
+      const allJobs = filtered.filter(c => c.contractType === 'job');
+      if (allJobs.length > 0) {
+        grouped['Jobber'] = sortCustomers(allJobs);
+      }
+    }
+    
+    // Add regular areas (excluding jobs if showing Jobs category)
+    AREAS.forEach(area => {
+      if (selectedAreas.includes(area)) {
+        const areaCustomers = filtered.filter(c => c.area === area);
+        // If we have a Jobs category, exclude jobs from individual areas
+        const customersToShow = selectedAreas.length > 1 
+          ? areaCustomers.filter(c => c.contractType !== 'job')
+          : areaCustomers;
+        grouped[area] = sortCustomers(customersToShow);
+      }
+    });
+    
+    return grouped;
+  }, [customers, selectedAreas, sortBy, showCompleted, searchQuery, reverseOrder]);
+
+  const allCustomersSorted = useMemo(() => {
+    const filtered = customers.filter(c => {
+      const matchesArea = selectedAreas.includes(c.area);
+      const isCompleted = isJobComplete(c);
+      const effectiveBadges = (c.badges || []);
+      const matchesSearch = searchQuery.trim() === '' || 
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        effectiveBadges.some(badge => badge.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesArea && (showCompleted || !isCompleted) && matchesSearch;
+    });
+    return sortCustomers(filtered);
+  }, [customers, selectedAreas, sortBy, showCompleted, searchQuery, reverseOrder]);
+
+  const toggleArea = (area) => {
+    setSelectedAreas(prev => 
+      prev.includes(area) 
+        ? prev.filter(a => a !== area)
+        : [...prev, area]
+    );
+  };
+
+  const toggleAllAreas = () => {
+    setSelectedAreas(prev => 
+      prev.length === AREAS.length ? [] : [...AREAS]
+    );
+  };
+
+  const toggleCollapse = (area) => {
+    setCollapsedAreas(prev => {
+      const next = new Set(prev);
+      if (next.has(area)) {
+        next.delete(area);
+      } else {
+        next.add(area);
+      }
+      return next;
+    });
+  };
+
+  const toggleCardExpand = (customerId) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(customerId)) {
+        next.delete(customerId);
+      } else {
+        next.add(customerId);
+      }
+      return next;
+    });
+  };
+
+  const handleSubmit = () => {
+    console.log('Form submitted with data:', formData);
+    
+    // Validate required fields
+    if (!formData.name || !formData.address) {
+      alert('Vennligst fyll ut alle påkrevde felt: Kundenavn og Adresse');
+      return;
+    }
+    
+    const newCustomer = {
+      ...formData,
+      id: editingId || Date.now(),
+      visitCount: formData.contractType === 'job' ? (formData.visitCount || 0) : undefined
+    };
+    
+    console.log('Creating customer:', newCustomer);
+    
+    const updatedCustomers = editingId
+      ? customers.map(c => c.id === editingId ? newCustomer : c)
+      : [...customers, newCustomer];
+    
+    console.log('Updated customers array:', updatedCustomers);
+    
+    saveData(updatedCustomers);
+    
+    setFormData({ 
+      name: '', 
+      address: '', 
+      area: 'Kristiansund', 
+      lastVisit: '', 
+      contractVisits: 6,
+      contractType: 'recurring',
+      jobVisits: 1,
+      visitCount: 0,
+      notes: '',
+      badges: []
+    });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const markVisitComplete = (customerId) => {
+    const updatedCustomers = customers.map(c => {
+      if (c.id === customerId) {
+        if (c.contractType === 'job') {
+          const newVisitCount = (c.visitCount || 0) + 1;
+          return {
+            ...c,
+            lastVisit: new Date().toISOString().split('T')[0],
+            visitCount: newVisitCount
+          };
+        } else {
+          return {
+            ...c,
+            lastVisit: new Date().toISOString().split('T')[0]
+          };
+        }
+      }
+      return c;
+    });
+    
+    saveData(updatedCustomers);
+  };
+
+  const handleEdit = (customer) => {
+    setFormData({
+      ...customer,
+      contractType: customer.contractType || 'recurring',
+      jobVisits: customer.jobVisits || 1,
+      visitCount: customer.visitCount || 0,
+      notes: customer.notes || '',
+      badges: customer.badges || []
+    });
+    setEditingId(customer.id);
+    setShowForm(true);
+    
+    // Scroll to form after it's shown
+    setTimeout(() => {
+      if (formRef.current) {
+        formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  const handleDelete = (id) => {
+    console.log('Opening delete confirmation for customer id:', id);
+    setDeleteConfirm(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm) {
+      console.log('Deleting customer with id:', deleteConfirm);
+      const updatedCustomers = customers.filter(c => c.id !== deleteConfirm);
+      console.log('Customers after delete:', updatedCustomers);
+      saveData(updatedCustomers);
+      setDeleteConfirm(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    console.log('Delete cancelled');
+    setDeleteConfirm(null);
+  };
+
+  const handleBulkImport = () => {
+    try {
+      const lines = importData.trim().split('\n');
+      const newCustomers = [];
+      let currentId = Date.now();
+      let importArea = selectedAreas[0] || 'Kristiansund';
+      
+      lines.forEach((line) => {
+        if (!line.trim()) return;
+        
+        const parts = line.split(',');
+        if (parts.length < 7) return;
+        
+        const name = parts[1]?.trim() || '';
+        const address = parts[2]?.trim() || '';
+        const vpaStr = parts[6]?.trim() || '';
+        
+        if (!name || name === 'Kunde' || name === 'kunde' || !address) return;
+        
+        if (AREAS.includes(name)) {
+          importArea = name;
+          return;
+        }
+        
+        const vpa = parseInt(vpaStr);
+        if (isNaN(vpa) || vpa < 1 || vpa > 12) return;
+        
+        newCustomers.push({
+          id: currentId++,
+          name,
+          address,
+          area: importArea,
+          lastVisit: '',
+          contractVisits: vpa,
+          contractType: 'recurring',
+          badges: []
+        });
+      });
+      
+      if (newCustomers.length === 0) {
+        alert('Ingen gyldige kunder funnet. Sjekk at CSV-dataene er riktige.');
+        return;
+      }
+      
+      saveData([...customers, ...newCustomers]);
+      setImportData('');
+      setShowImport(false);
+      alert(`Importerte ${newCustomers.length} kunder!`);
+    } catch (error) {
+      alert('Feil ved import: ' + error.message);
+    }
+  };
+
+  const handleImport = () => {
+    try {
+      const parsed = JSON.parse(importData);
+      if (Array.isArray(parsed)) {
+        saveData(parsed);
+        setImportData('');
+        setShowImport(false);
+        alert(`Importerte ${parsed.length} kunder fra JSON!`);
+        return;
+      }
+    } catch (e) {
+      handleBulkImport();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-800 flex items-center justify-center">
+        <div className="text-gray-100 text-xl">Laster data...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-800 p-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-wrap justify-between items-center gap-2 sm:gap-4 mb-6">
+          <div className="hidden sm:block flex-1"></div>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-100 text-center flex-shrink-0">State of Service</h1>
+          <div className="flex-1 flex items-center justify-end gap-1 sm:gap-2">
+            <button 
+              onClick={() => loadData()}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-700 transition"
+              title={
+                syncStatus === 'synced' ? 'Synkronisert med cloud - Klikk for å oppdatere' :
+                syncStatus === 'syncing' ? 'Synkroniserer...' :
+                syncStatus === 'local' ? 'Lokal lagring (kun denne enheten) - Klikk for å oppdatere' :
+                'Offline - Klikk for å prøve igjen'
+              }
+            >
+              <div className="flex flex-col items-end">
+                {lastSyncTime && (
+                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                    <span className="hidden sm:inline">Sist synkronisert: </span>{formatSyncTime(lastSyncTime)}
+                  </span>
+                )}
+              </div>
+              {syncStatus === 'synced' && <Cloud size={20} className="text-green-400" />}
+              {syncStatus === 'syncing' && <Cloud size={20} className="text-yellow-400 animate-pulse" />}
+              {syncStatus === 'local' && <Cloud size={20} className="text-blue-400" />}
+              {syncStatus === 'offline' && <CloudOff size={20} className="text-gray-400" />}
+            </button>
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="flex items-center justify-center bg-gray-600 text-white p-2 rounded-lg hover:bg-gray-500 transition"
+                title="Meny"
+              >
+                <ChevronDown size={20} />
+              </button>
+              {showMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-gray-700 rounded-lg shadow-xl z-50 py-2">
+                  <button
+                    onClick={() => {
+                      setExportData(JSON.stringify(customers, null, 2));
+                      setShowExport(true);
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-gray-100 hover:bg-gray-600 transition text-sm"
+                  >
+                    Eksporter Data
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowImport(!showImport);
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-gray-100 hover:bg-gray-600 transition text-sm"
+                  >
+                    Importer Data
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setShowForm(!showForm);
+                if (!showForm) {
+                  setTimeout(() => {
+                    if (formRef.current) {
+                      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }, 100);
+                }
+              }}
+              className="flex items-center justify-center gap-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition"
+              title="Legg til ny kunde"
+            >
+              <Plus size={20} />
+              <span className="hidden sm:inline text-sm">Ny</span>
+            </button>
+          </div>
+        </div>
+
+        {showExport && (
+          <div className="bg-gray-700 rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-100">Eksporter Kundedata</h2>
+            <p className="text-sm text-gray-300 mb-4">
+              <strong>Backup:</strong><br/>
+              Kopier og lagre dataene dine som sikkerhetskopi.
+            </p>
+            <textarea
+              value={exportData}
+              readOnly
+              onClick={(e) => e.target.select()}
+              className="w-full h-64 border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100 font-mono text-sm"
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(exportData);
+                  alert('Kopiert til utklippstavlen!');
+                }}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              >
+                Kopier til utklippstavle
+              </button>
+              <button
+                onClick={() => {
+                  setShowExport(false);
+                  setExportData('');
+                }}
+                className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-500"
+              >
+                Lukk
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showImport && (
+          <div className="bg-gray-700 rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-100">Importer Kunder</h2>
+            <p className="text-sm text-gray-300 mb-4">
+              <strong>JSON (fra backup):</strong><br/>
+              Lim inn JSON-data fra en tidligere eksport<br/><br/>
+              <strong>CSV (fra Google Sheets):</strong><br/>
+              1. Last ned som CSV<br/>
+              2. Åpne i teksteditor<br/>
+              3. Kopier alt innhold
+            </p>
+            <textarea
+              value={importData}
+              onChange={(e) => setImportData(e.target.value)}
+              placeholder="Lim inn JSON eller CSV-innhold her..."
+              className="w-full h-64 border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100 font-mono text-sm"
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleImport}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
+              >
+                Importer
+              </button>
+              <button
+                onClick={() => {
+                  setShowImport(false);
+                  setImportData('');
+                }}
+                className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-500"
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showForm && (
+          <div ref={formRef} className="bg-gray-700 rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-100">{editingId ? 'Rediger Kunde' : 'Legg til Ny Kunde'}</h2>
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="Kundenavn"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100"
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Adresse"
+                  value={formData.address}
+                  onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100"
+                  required
+                />
+                <select
+                  value={formData.area}
+                  onChange={(e) => setFormData({...formData, area: e.target.value})}
+                  className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100"
+                >
+                  {AREAS.map(area => (
+                    <option key={area} value={area}>{area}</option>
+                  ))}
+                </select>
+                <div>
+                  <label className="block text-sm text-gray-300 mb-2">Service</label>
+                  <div className="flex flex-wrap gap-2">
+                    {BADGE_OPTIONS.map(badge => (
+                      <button
+                        key={badge}
+                        type="button"
+                        onClick={() => {
+                          const badges = formData.badges || [];
+                          if (badges.includes(badge)) {
+                            setFormData({...formData, badges: badges.filter(b => b !== badge)});
+                          } else {
+                            setFormData({...formData, badges: [...badges, badge]});
+                          }
+                        }}
+                        className={`px-2 py-1 rounded text-xs transition ${
+                          (formData.badges || []).includes(badge)
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                        }`}
+                      >
+                        {getBadgeDisplay(badge)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <select
+                  value={formData.contractType}
+                  onChange={(e) => setFormData({...formData, contractType: e.target.value})}
+                  className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100"
+                >
+                  <option value="recurring">Løpende Kontrakt</option>
+                  <option value="job">Jobb</option>
+                </select>
+                {formData.contractType === 'recurring' ? (
+                  <select
+                    value={formData.contractVisits}
+                    onChange={(e) => setFormData({...formData, contractVisits: Number(e.target.value)})}
+                    className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100"
+                  >
+                    <option value={12}>12 besøk/år</option>
+                    <option value={6}>6 besøk/år</option>
+                    <option value={4}>4 besøk/år</option>
+                    <option value={3}>3 besøk/år</option>
+                    <option value={2}>2 besøk/år</option>
+                    <option value={1}>1 besøk/år</option>
+                  </select>
+                ) : (
+                  <select
+                    value={formData.jobVisits}
+                    onChange={(e) => setFormData({...formData, jobVisits: Number(e.target.value)})}
+                    className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100"
+                  >
+                    <option value={1}>1-besøks jobb</option>
+                    <option value={2}>2-besøks jobb (4 måneder mellomrom)</option>
+                    <option value={3}>3-besøks jobb (7 dager mellomrom)</option>
+                  </select>
+                )}
+                <input
+                  type="date"
+                  placeholder="Siste Besøksdato"
+                  value={formData.lastVisit}
+                  onChange={(e) => setFormData({...formData, lastVisit: e.target.value})}
+                  className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100"
+                />
+                <textarea
+                  placeholder="Notater/Påminnelser (valgfritt)"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-800 text-gray-100 md:col-span-2 h-24 resize-none"
+                />
+                <div className="flex gap-2 md:col-span-2">
+                  <button 
+                    onClick={handleSubmit}
+                    className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
+                  >
+                    {editingId ? 'Oppdater' : 'Legg til'}
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowForm(false);
+                      setEditingId(null);
+                      setFormData({ 
+                        name: '', 
+                        address: '', 
+                        area: 'Kristiansund', 
+                        lastVisit: '', 
+                        contractVisits: 6,
+                        contractType: 'recurring',
+                        jobVisits: 1,
+                        visitCount: 0,
+                        notes: '',
+                        badges: []
+                      });
+                    }}
+                    className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-500"
+                  >
+                    Avbryt
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-700 rounded-lg shadow-xl p-6 max-w-md mx-4">
+              <h3 className="text-xl font-semibold mb-4 text-gray-100">Bekreft sletting</h3>
+              <p className="text-gray-300 mb-6">
+                Er du sikker på at du vil slette denne kunden? Dette kan ikke angres.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={cancelDelete}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition"
+                >
+                  Avbryt
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                >
+                  Slett
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-gray-700 rounded-lg shadow-md p-4 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <h3 className="font-semibold text-gray-100">Sorter etter:</h3>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => setSortBy('dueDate')}
+                  className={`px-4 py-2 rounded-lg text-sm transition ${
+                    sortBy === 'dueDate'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                >
+                  Forfallsdato
+                </button>
+                <button
+                  onClick={() => setSortBy('vpa')}
+                  className={`px-4 py-2 rounded-lg text-sm transition ${
+                    sortBy === 'vpa'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                >
+                  VPA
+                </button>
+                <button
+                  onClick={() => setSortBy('name')}
+                  className={`px-4 py-2 rounded-lg text-sm transition ${
+                    sortBy === 'name'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                >
+                  Navn
+                </button>
+                <button
+                  onClick={() => setReverseOrder(!reverseOrder)}
+                  className={`px-3 py-2 rounded-lg text-sm transition ${
+                    reverseOrder
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                  title="Snu rekkefølge"
+                >
+                  <ArrowUpDown size={18} />
+                </button>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showCompleted}
+                  onChange={(e) => setShowCompleted(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-gray-300">Vis fullførte jobber</span>
+              </label>
+            </div>
+            <div className="flex items-center gap-4 flex-wrap">
+              <h3 className="font-semibold text-gray-100">Visning:</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setViewMode('byArea')}
+                  className={`px-4 py-2 rounded-lg text-sm transition ${
+                    viewMode === 'byArea'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                >
+                  Etter Område
+                </button>
+                <button
+                  onClick={() => setViewMode('global')}
+                  className={`px-4 py-2 rounded-lg text-sm transition ${
+                    viewMode === 'global'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                >
+                  Alle
+                </button>
+              </div>
+              <div className="flex items-center gap-2 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 flex-1 md:flex-initial md:min-w-[250px]">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Søk..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-transparent text-gray-100 text-sm focus:outline-none placeholder-gray-500"
+                  title="Søk etter kunde, adresse eller service"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="text-gray-400 hover:text-gray-200 transition flex-shrink-0"
+                    title="Tøm søk"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="pt-4 border-t border-gray-600">
+              <h3 className="font-semibold text-gray-100 mb-3">Områder:</h3>
+              <div className="flex flex-wrap gap-2 lg:gap-3">
+              {AREAS.map(area => (
+                <button
+                  key={area}
+                  onClick={() => toggleArea(area)}
+                  className={`px-4 py-2 rounded-full text-sm md:text-base transition whitespace-nowrap ${
+                    selectedAreas.includes(area)
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                >
+                  {area}
+                </button>
+              ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {searchQuery && (
+          <div className="bg-gray-700 rounded-lg shadow-md px-4 py-2 mb-6">
+            <p className="text-sm text-gray-300">
+              🔍 {viewMode === 'byArea' 
+                ? `${Object.values(customersByArea).reduce((sum, arr) => sum + arr.length, 0)} resultat${Object.values(customersByArea).reduce((sum, arr) => sum + arr.length, 0) !== 1 ? 'er' : ''} for "${searchQuery}"`
+                : `${allCustomersSorted.length} resultat${allCustomersSorted.length !== 1 ? 'er' : ''} for "${searchQuery}"`
+              }
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          {viewMode === 'byArea' ? (
+            Object.entries(customersByArea).map(([area, areaCustomers]) => {
+              if (areaCustomers.length === 0) return null;
+              const isCollapsed = collapsedAreas.has(area);
+              const isJobsCategory = area === 'Jobber';
+              const areaCompleted = isAreaCompleted(areaCustomers);
+              
+              return (
+                <div key={area} className="bg-gray-700 rounded-lg shadow-md overflow-hidden">
+                  <button
+                    onClick={() => toggleCollapse(area)}
+                    className="w-full flex items-center justify-between p-4 bg-gray-600 hover:bg-gray-500 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xl font-bold text-gray-100">
+                        {isJobsCategory && '🔧 '}{area}
+                        {!isJobsCategory && areaCompleted && <span className="text-green-400"> ✓</span>}
+                      </h2>
+                      <span className="text-sm text-gray-300">({areaCustomers.length} {isJobsCategory ? 'jobb' : 'kunde'}{areaCustomers.length !== 1 ? (isJobsCategory ? 'er' : 'r') : ''})</span>
+                      {isJobsCategory && (
+                        <span className="text-xs text-gray-400 hidden md:inline">• Alle jobber fra valgte områder</span>
+                      )}
+                      {!isJobsCategory && areaCompleted && (
+                        <span className="text-xs text-green-400 hidden md:inline">• Alle perioder fullført</span>
+                      )}
+                    </div>
+                    {isCollapsed ? <ChevronDown size={24} className="text-gray-300" /> : <ChevronUp size={24} className="text-gray-300" />}
+                  </button>
+                  
+                  {!isCollapsed && (
+                    <div className="p-4 space-y-3">
+                      {areaCustomers.map(customer => {
+                        const visitInfo = getVisitStatus(customer);
+                        const nextVisit = calculateNextVisit(customer.lastVisit, customer.contractVisits, customer.contractType, customer.jobVisits, customer.visitCount);
+                        const isJob = customer.contractType === 'job';
+                        const jobComplete = isJobComplete(customer);
+                        const isExpanded = expandedCards.has(customer.id);
+                        
+                        return (
+                          <div
+                            key={customer.id}
+                            className={`${getContractColor(customer)} border-2 rounded-lg shadow-sm hover:shadow-md transition ${jobComplete ? 'opacity-60' : ''}`}
+                          >
+                            <div 
+                              onClick={() => toggleCardExpand(customer.id)}
+                              className="p-3 cursor-pointer"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2 flex-1 flex-wrap">
+                                  <h3 className="text-sm md:text-lg font-semibold text-gray-800">{customer.name}</h3>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {(customer.badges || []).map(badge => (
+                                      <span key={badge} className="px-1.5 py-0.5 bg-transparent border border-gray-700 text-gray-800 text-xs rounded">
+                                        {getBadgeDisplay(badge)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  {isJob && <span className="px-2 py-1 bg-red-200 text-red-800 text-xs font-bold rounded">JOB</span>}
+                                  {isJobsCategory && <span className="px-2 py-1 bg-blue-200 text-blue-800 text-xs font-medium rounded">{customer.area}</span>}
+                                </div>
+                                <span className={`${getStatusColor(visitInfo.status)} text-sm font-medium`}>
+                                  {visitInfo.label}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {isExpanded && (
+                              <div className="px-4 pb-4 space-y-3 border-t pt-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-gray-700 text-sm">
+                                  <p><span className="font-medium">Adresse:</span> {customer.address}</p>
+                                  <p><span className="font-medium">Område:</span> {customer.area}</p>
+                                  {isJob ? (
+                                    <p><span className="font-medium">Jobbtype:</span> {customer.jobVisits}-besøks jobb ({customer.visitCount || 0}/{customer.jobVisits} fullført)</p>
+                                  ) : (
+                                    <p><span className="font-medium">VPA:</span> {customer.contractVisits}</p>
+                                  )}
+                                  <p><span className="font-medium">Siste Besøk:</span> {customer.lastVisit ? new Date(customer.lastVisit).toLocaleDateString('nb-NO') : 'Ingen besøk'}</p>
+                                  {nextVisit && (
+                                    <p className="flex items-center gap-1">
+                                      <Calendar size={16} />
+                                      <span className="font-medium">Neste Besøk:</span> {nextVisit.toLocaleDateString('nb-NO')}
+                                    </p>
+                                  )}
+                                </div>
+                                {customer.notes && (
+                                  <div className="mt-3 p-3 bg-white bg-opacity-50 rounded-lg">
+                                    <p className="text-sm font-medium text-gray-800 mb-1">Notater:</p>
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{customer.notes}</p>
+                                  </div>
+                                )}
+                                <div className="flex gap-2 pt-2">
+                                  {!jobComplete && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        markVisitComplete(customer.id);
+                                      }}
+                                      className="px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                                    >
+                                      Marker Besøk Fullført
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEdit(customer);
+                                    }}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                                  >
+                                    <Edit2 size={18} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(customer.id);
+                                    }}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="bg-gray-700 rounded-lg shadow-md p-4">
+              <div className="space-y-3">
+                {allCustomersSorted.map(customer => {
+                  const visitInfo = getVisitStatus(customer);
+                  const nextVisit = calculateNextVisit(customer.lastVisit, customer.contractVisits, customer.contractType, customer.jobVisits, customer.visitCount);
+                  const isJob = customer.contractType === 'job';
+                  const jobComplete = isJobComplete(customer);
+                  const isExpanded = expandedCards.has(customer.id);
+                  
+                  return (
+                    <div
+                      key={customer.id}
+                      className={`${getContractColor(customer)} border-2 rounded-lg shadow-sm hover:shadow-md transition ${jobComplete ? 'opacity-60' : ''}`}
+                    >
+                      <div 
+                        onClick={() => toggleCardExpand(customer.id)}
+                        className="p-3 cursor-pointer"
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2 flex-1 flex-wrap">
+                            <h3 className="text-sm md:text-lg font-semibold text-gray-800">{customer.name}</h3>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {(customer.badges || []).map(badge => (
+                                <span key={badge} className="px-1.5 py-0.5 bg-transparent border border-gray-700 text-gray-800 text-xs rounded">
+                                  {getBadgeDisplay(badge)}
+                                </span>
+                              ))}
+                            </div>
+                            {isJob && <span className="px-2 py-1 bg-red-200 text-red-800 text-xs font-bold rounded">JOB</span>}
+                          </div>
+                          <span className={`${getStatusColor(visitInfo.status)} text-sm font-medium`}>
+                            {visitInfo.label}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {isExpanded && (
+                        <div className="px-4 pb-4 space-y-3 border-t pt-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-black text-sm">
+                            <p><span className="font-medium">Adresse:</span> {customer.address}</p>
+                            <p><span className="font-medium">Område:</span> {customer.area}</p>
+                            {isJob ? (
+                              <p><span className="font-medium">Jobbtype:</span> {customer.jobVisits}-besøks jobb ({customer.visitCount || 0}/{customer.jobVisits} fullført)</p>
+                            ) : (
+                              <p><span className="font-medium">VPA:</span> {customer.contractVisits}</p>
+                            )}
+                            <p><span className="font-medium">Siste Besøk:</span> {customer.lastVisit ? new Date(customer.lastVisit).toLocaleDateString('nb-NO') : 'Ingen besøk'}</p>
+                            {nextVisit && (
+                              <p className="flex items-center gap-1">
+                                <Calendar size={16} />
+                                <span className="font-medium">Neste Besøk:</span> {nextVisit.toLocaleDateString('nb-NO')}
+                              </p>
+                            )}
+                          </div>
+                          {customer.notes && (
+                            <div className="mt-3 p-3 bg-gray-600 rounded-lg">
+                              <p className="text-sm font-medium text-gray-200 mb-1">Notater:</p>
+                              <p className="text-sm text-gray-300 whitespace-pre-wrap">{customer.notes}</p>
+                            </div>
+                          )}
+                          <div className="flex gap-2 pt-2">
+                            {!jobComplete && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markVisitComplete(customer.id);
+                                }}
+                                className="px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                              >
+                                Marker Besøk Fullført
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(customer);
+                              }}
+                              className="p-2 text-blue-400 hover:bg-gray-600 rounded"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(customer.id);
+                              }}
+                              className="p-2 text-red-400 hover:bg-gray-600 rounded"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {customers.length === 0 && (
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-lg">Ingen kunder ennå. Klikk "Ny Kunde" for å komme i gang!</p>
+          </div>
+        )}
+
+        {customers.length > 0 && (viewMode === 'byArea' ? Object.values(customersByArea).every(arr => arr.length === 0) : allCustomersSorted.length === 0) && (
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-lg">
+              {searchQuery 
+                ? `Ingen kunder matcher "${searchQuery}". Prøv et annet søk.`
+                : 'Ingen kunder i valgte områder. Juster områdefiltrene ovenfor.'
+              }
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<CustomerVisitTracker />);
+  </script>
+</body>
+</html>
